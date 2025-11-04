@@ -20,7 +20,7 @@ export interface EditorHandle {
 
 const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onComponentSaved }, ref) => {
   const [input, setInput] = useState('');
-  const { messages, sendMessage } = useChat();
+  const { messages, sendMessage, setMessages } = useChat();
   const [currentComponent, setCurrentComponent] = useState<string>('');
   const [componentName, setComponentName] = useState<string>('');
   const [currentComponentId, setCurrentComponentId] = useState<string | null>(null);
@@ -33,6 +33,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
     setComponentName('');
     setCurrentComponentId(null);
     setInput('');
+    setMessages([]); // Clear chat messages
   };
 
   // Expose handle and previewing flag
