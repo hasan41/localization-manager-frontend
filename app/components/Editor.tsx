@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
 import ComponentPreview from './ComponentPreview';
 import { ComponentEntry } from '../lib/database';
@@ -28,20 +28,13 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
   const [localizeStatus, setLocalizeStatus] = useState<'idle' | 'localizing' | 'success' | 'error'>('idle');
 
   // Reset chat function
-  const resetChat = () => {
+  const resetChat = useCallback(() => {
     setCurrentComponent('');
     setComponentName('');
     setCurrentComponentId(null);
     setInput('');
     setMessages([]); // Clear chat messages
-  };
-
-  // Expose handle and previewing flag
-  useImperativeHandle(ref, () => ({
-    handleSave,
-    isPreviewingGenerated: !!currentComponent,
-    resetChat
-  }), [currentComponent]);
+  }, [setMessages]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +82,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
   }, [messages]);
 
   // Save component to database
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!currentComponent || !componentName) {
       alert('No component to save');
       return;
@@ -122,7 +115,14 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  };
+  }, [currentComponent, componentName, currentComponentId, onComponentSaved]);
+
+  // Expose handle and previewing flag
+  useImperativeHandle(ref, () => ({
+    handleSave,
+    isPreviewingGenerated: !!currentComponent,
+    resetChat
+  }), [currentComponent, handleSave, resetChat]);
 
   // Localize component
   const handleLocalize = async () => {
@@ -156,16 +156,16 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
           <div className="max-w-2xl mx-auto">
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">React Component Creator</h1>
-              <p className="text-gray-600 dark:text-gray-400">Describe the React component you want to create, and I'll build it for you with a live preview. (Beta - may take a tries to get a successful preview.)</p>
+              <p className="text-gray-600 dark:text-gray-400">Describe the React component you want to create, and I&apos;ll build it for you with a live preview. (Beta - may take a tries to get a successful preview.)</p>
             </div>
             {messages.length === 0 && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 mb-6">
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Try these examples:</h3>
                 <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <div>• "Create a modern button component with hover effects"</div>
-                  <div>• "Build a user profile card with avatar and social links"</div>
-                  <div>• "Make a responsive navigation menu"</div>
-                  <div>• "Design a pricing card component"</div>
+                  <div>• &quot;Create a modern button component with hover effects&quot;</div>
+                  <div>• &quot;Build a user profile card with avatar and social links&quot;</div>
+                  <div>• &quot;Make a responsive navigation menu&quot;</div>
+                  <div>• &quot;Design a pricing card component&quot;</div>
                 </div>
               </div>
             )}
@@ -328,5 +328,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
     </div>
   );
 });
+
+Editor.displayName = 'Editor';
 
 export default Editor;
