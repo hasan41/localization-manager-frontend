@@ -43,58 +43,76 @@ export default function ComponentHistory({ onSelect, currentComponentId, refresh
 
   if (loading) {
     return (
-      <div className="p-4 text-gray-500">
-        Loading components...
+      <div className="flex items-center justify-center p-8">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm text-slate-400">Loading components...</p>
+        </div>
       </div>
     );
   }
 
   if (components.length === 0) {
     return (
-      <div className="p-4 text-gray-500 text-sm">
-        <p>No saved components yet.</p>
-        <p className="mt-2">Components will appear here after you save them.</p>
+      <div className="p-6 text-center">
+        <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center">
+          <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          </svg>
+        </div>
+        <p className="text-sm text-slate-400 font-medium">No saved components yet</p>
+        <p className="text-xs text-slate-500 mt-2">Components will appear here after you save them</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="font-semibold text-gray-900 dark:text-white">
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900">
+      <div className="p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+        <h3 className="font-bold text-slate-900 dark:text-white">
           Component History
         </h3>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-xs text-slate-500 mt-1">
           {components.length} saved component{components.length !== 1 ? 's' : ''}
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {components.map(component => (
+      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        {components.map((component, index) => (
           <div
             key={component.id}
             onClick={() => onSelect(component)}
-            className={`p-4 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
-              currentComponentId === component.id ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500' : ''
+            style={{ animationDelay: `${index * 50}ms` }}
+            className={`group relative p-4 rounded-xl cursor-pointer transition-all duration-300 animate-fade-in ${
+              currentComponentId === component.id
+                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105'
+                : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 hover:shadow-md hover:scale-102'
             }`}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-gray-900 dark:text-white truncate">
-                  {component.name}
-                </h4>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-2 h-2 rounded-full ${currentComponentId === component.id ? 'bg-white' : 'bg-gradient-to-r from-blue-500 to-purple-500'}`}></div>
+                  <h4 className={`font-semibold truncate ${currentComponentId === component.id ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+                    {component.name}
+                  </h4>
+                </div>
                 {component.description && (
-                  <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                  <p className={`text-sm line-clamp-2 mb-2 ${currentComponentId === component.id ? 'text-blue-100' : 'text-slate-600 dark:text-slate-400'}`}>
                     {component.description}
                   </p>
                 )}
-                <p className="text-xs text-gray-400 mt-2">
+                <p className={`text-xs ${currentComponentId === component.id ? 'text-blue-200' : 'text-slate-400'}`}>
                   {new Date(component.updated_at || component.created_at!).toLocaleString()}
                 </p>
               </div>
               <button
                 onClick={(e) => handleDelete(component.id, e)}
-                className="ml-2 p-1 text-gray-400 hover:text-red-600 transition-colors"
+                className={`ml-2 p-2 rounded-lg transition-all duration-200 ${
+                  currentComponentId === component.id
+                    ? 'hover:bg-white/20 text-white'
+                    : 'hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-600'
+                } opacity-0 group-hover:opacity-100`}
                 title="Delete component"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
