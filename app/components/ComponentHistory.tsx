@@ -9,9 +9,10 @@ interface ComponentHistoryProps {
   onSelect: (component: ComponentEntry) => void;
   currentComponentId?: string;
   refreshTrigger?: number;
+  onDelete?: (deletedId: string, remainingComponents: ComponentEntry[]) => void;
 }
 
-export default function ComponentHistory({ onSelect, currentComponentId, refreshTrigger }: ComponentHistoryProps) {
+export default function ComponentHistory({ onSelect, currentComponentId, refreshTrigger, onDelete }: ComponentHistoryProps) {
   const [components, setComponents] = useState<ComponentEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; componentId: string; componentName: string }>({
@@ -43,8 +44,12 @@ export default function ComponentHistory({ onSelect, currentComponentId, refresh
   const confirmDelete = async () => {
     try {
       await deleteComponent(deleteModal.componentId);
-      setComponents(components.filter(c => c.id !== deleteModal.componentId));
+      const newComponentsList = components.filter(c => c.id !== deleteModal.componentId);
+      setComponents(newComponentsList);
       setDeleteModal({ isOpen: false, componentId: '', componentName: '' });
+      if (onDelete) {
+        onDelete(deleteModal.componentId, newComponentsList);
+      }
     } catch (error) {
       console.error('Failed to delete component:', error);
     }

@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import ComponentPreview from './ComponentPreview';
 import { ComponentEntry } from '../lib/database';
 import { localizeComponent } from '../lib/localization-utils';
-import { createComponent } from '../lib/components-storage';
+import { createComponent, updateComponent } from '../lib/components-storage';
 
 interface EditorProps {
   selectedComponent?: ComponentEntry | null;
@@ -36,6 +36,9 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
     if (selectedComponent) {
       setCurrentComponent(selectedComponent.code);
       setComponentName(selectedComponent.name);
+    } else {
+      setCurrentComponent(''); // <--- Reset for new chat
+      setComponentName('');
     }
   }, [selectedComponent]);
 

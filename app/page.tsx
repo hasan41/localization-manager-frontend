@@ -12,27 +12,55 @@ export default function Home() {
   const [selectedComponent, setSelectedComponent] = useState<ComponentEntry | null>(null);
   const [showHistory, setShowHistory] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [chatSessionId, setChatSessionId] = useState(0);
 
   const handleSelectComponent = (component: ComponentEntry) => {
     setSelectedComponent(component);
     setCurrentPage('editor');
+    setChatSessionId(id => id + 1);
   };
 
   const handleComponentSaved = () => {
     // Trigger refresh of component history
     setRefreshTrigger(prev => prev + 1);
     setSelectedComponent(null);
+    setChatSessionId(id => id + 1);
+  };
+
+  const handleDeleteComponent = (_deletedId: string, remaining: ComponentEntry[]) => {
+    if (remaining.length === 0) {
+      setSelectedComponent(null);
+      setChatSessionId(id => id + 1);
+      return;
+    }
+    // Try to select next component, or previous if deleted was last
+    const idx = remaining.findIndex(c => c.id === selectedComponent?.id);
+    if (idx !== -1) {
+      const next = remaining[idx] || remaining[idx-1] || remaining[0];
+      setSelectedComponent(next);
+      setChatSessionId(id => id + 1);
+    } else {
+      setSelectedComponent(remaining[0]);
+      setChatSessionId(id => id + 1);
+    }
+  };
+
+  const handleNewChat = () => {
+    setSelectedComponent(null);
+    setCurrentPage('editor');
+    setChatSessionId(id => id + 1);
   };
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
-      <SideNav currentPage={currentPage} onPageChange={setCurrentPage} />
+      <SideNav currentPage={currentPage} onPageChange={setCurrentPage} onNewChat={handleNewChat} />
 
       <main className="flex-1 ml-64 flex">
         {/* Main content area */}
         <div className="flex-1 bg-white dark:bg-slate-900">
           {currentPage === 'editor' && (
             <Editor
+              key={chatSessionId}
               selectedComponent={selectedComponent}
               onComponentSaved={handleComponentSaved}
             />
@@ -59,6 +87,7 @@ export default function Home() {
               onSelect={handleSelectComponent}
               currentComponentId={selectedComponent?.id}
               refreshTrigger={refreshTrigger}
+              onDelete={handleDeleteComponent}
             />
           </div>
         )}
