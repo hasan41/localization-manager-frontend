@@ -67,5 +67,32 @@ export const t = (key: string, locale: string = 'en', fallback?: string) =>
   translations.get(key, locale, fallback);
 
 // Get all translations for a locale
-export const getTranslations = (locale: string = 'en') => 
-  translations.getAll(locale); 
+export const getTranslations = (locale: string = 'en') =>
+  translations.getAll(locale);
+
+// React hook for use in components
+import { useState, useEffect } from 'react';
+
+export function useTranslation(initialLocale: string = 'en') {
+  const [locale, setLocale] = useState(initialLocale);
+  const [translationsMap, setTranslationsMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    loadTranslations(locale);
+  }, [locale]);
+
+  const loadTranslations = async (loc: string) => {
+    try {
+      const trans = await translations.getAll(loc);
+      setTranslationsMap(trans);
+    } catch (error) {
+      console.error('Failed to load translations:', error);
+    }
+  };
+
+  const t = (key: string, fallback?: string): string => {
+    return translationsMap[key] || fallback || key;
+  };
+
+  return { t, locale, setLocale, translations: translationsMap };
+} 

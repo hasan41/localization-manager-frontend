@@ -3,42 +3,120 @@
 import { useChat } from '@ai-sdk/react';
 import { useState, useEffect } from 'react';
 import ComponentPreview from './ComponentPreview';
+import { ComponentEntry } from '../lib/database';
+import { localizeComponent } from '../lib/localization-utils';
+import { createComponent } from '../lib/components-storage';
 
-export default function Editor() {
+interface EditorProps {
+  selectedComponent?: ComponentEntry | null;
+  onComponentSaved?: () => void;
+}
+
+export default function Editor({ selectedComponent, onComponentSaved }: EditorProps) {
   const [input, setInput] = useState('');
   const { messages, sendMessage } = useChat();
   const [currentComponent, setCurrentComponent] = useState<string>('');
-  
+  const [componentName, setComponentName] = useState<string>('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [localizeStatus, setLocalizeStatus] = useState<'idle' | 'localizing' | 'success' | 'error'>('idle');
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim()) {
 
-      sendMessage({ 
-        text: `${input}` 
+      sendMessage({
+        text: `${input}`
       });
       setInput('');
     }
   };
+
+  // Load selected component from history
+  useEffect(() => {
+    if (selectedComponent) {
+      setCurrentComponent(selectedComponent.code);
+      setComponentName(selectedComponent.name);
+    }
+  }, [selectedComponent]);
 
   // Extract React component code from AI responses
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.role === 'assistant') {
       const text = lastMessage.parts.find(part => part.type === 'text')?.text || '';
-      
+
       // Look for React component code in code blocks
       const codeBlockRegex = /```(?:tsx?|jsx?|react)?\n([\s\S]*?)\n```/g;
       const matches = [...text.matchAll(codeBlockRegex)];
-      
+
       if (matches.length > 0) {
         // Get the last code block (most recent component)
         const componentCode = matches[matches.length - 1][1];
         if (componentCode.includes('export default') || componentCode.includes('function') || componentCode.includes('const')) {
           setCurrentComponent(componentCode);
+          // Extract component name from code
+          const nameMatch = componentCode.match(/(?:function|const)\s+(\w+)/);
+          if (nameMatch) {
+            setComponentName(nameMatch[1]);
+          }
         }
       }
     }
   }, [messages]);
+
+  // Save component to database
+  const handleSave = async () => {
+    if (!currentComponent || !componentName) {
+      alert('No component to save');
+      return;
+    }
+
+    setSaveStatus('saving');
+    try {
+      await createComponent(
+        componentName,
+        currentComponent,
+        `Generated component: ${componentName}`
+      );
+
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+
+      if (onComponentSaved) {
+        onComponentSaved();
+      }
+    } catch (error) {
+      console.error('Save error:', error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  };
+
+  // Localize component
+  const handleLocalize = async () => {
+    if (!currentComponent || !componentName) {
+      alert('No component to localize');
+      return;
+    }
+
+    setLocalizeStatus('localizing');
+    try {
+      const result = await localizeComponent(currentComponent, componentName);
+      setCurrentComponent(result.code);
+
+      setLocalizeStatus('success');
+      setTimeout(() => setLocalizeStatus('idle'), 2000);
+
+      console.log('Localization complete:', {
+        extractedTexts: result.extractedTexts,
+        keys: result.textToKeyMap
+      });
+    } catch (error) {
+      console.error('Localization error:', error);
+      setLocalizeStatus('error');
+      setTimeout(() => setLocalizeStatus('idle'), 3000);
+    }
+  };
 
   return (
     <div className="flex h-full">
@@ -149,8 +227,60 @@ export default function Editor() {
       </div>
 
       {/* Preview Section */}
-      <div className="w-1/2 border-l border-gray-200 dark:border-gray-700">
-        <ComponentPreview componentCode={currentComponent} />
+      <div className="w-1/2 border-l border-gray-200 dark:border-gray-700 flex flex-col">
+        {/* Preview Header with Actions */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h2 className="font-semibold text-gray-900 dark:text-white">
+                {componentName ? `Component: ${componentName}` : 'Component Preview'}
+              </h2>
+              {currentComponent && (
+                <p className="text-sm text-gray-500 mt-1">
+                  {currentComponent.split('\n').length} lines
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSave}
+                disabled={!currentComponent || saveStatus === 'saving'}
+                className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {saveStatus === 'saving' && (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                )}
+                {saveStatus === 'success' && '✓'}
+                {saveStatus === 'idle' && '💾'}
+                {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'success' ? 'Saved!' : 'Save'}
+              </button>
+
+              <button
+                onClick={handleLocalize}
+                disabled={!currentComponent || localizeStatus === 'localizing'}
+                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-lg transition-colors disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {localizeStatus === 'localizing' && (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                )}
+                {localizeStatus === 'success' && '✓'}
+                {localizeStatus === 'idle' && '🌐'}
+                {localizeStatus === 'localizing' ? 'Localizing...' : localizeStatus === 'success' ? 'Localized!' : 'Localize'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Preview Component */}
+        <div className="flex-1 overflow-auto">
+          <ComponentPreview componentCode={currentComponent} />
+        </div>
       </div>
     </div>
   );
