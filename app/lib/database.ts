@@ -114,7 +114,7 @@ export async function initializeDatabase(): Promise<void> {
   try {
     // Initialize SQL.js from local node_modules (avoids CSP issues)
     const SQL = await initSqlJs({
-      locateFile: (file: string) => `/sql-wasm.wasm`
+      locateFile: () => `/sql-wasm.wasm`
     });
 
     // Try to load existing database from localStorage
@@ -393,7 +393,7 @@ export async function updateComponent(id: string, updates: Partial<Omit<Componen
   }
 
   const setClauses: string[] = [];
-  const values: any[] = [];
+  const values: string[] = [];
 
   if (updates.name !== undefined) {
     setClauses.push('name = ?');

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ComponentDB, ComponentEntry } from '@/app/lib/database';
+import { ComponentDB } from '@/app/lib/database';
 
 // GET /api/components - Get all components
 export async function GET() {

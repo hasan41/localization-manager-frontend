@@ -4,11 +4,12 @@ import { ComponentDB } from '@/app/lib/database';
 // GET /api/components/[id] - Get component by ID
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const componentDB = ComponentDB.getInstance();
-    const component = await componentDB.getById(params.id);
+    const component = await componentDB.getById(id);
 
     if (!component) {
       return NextResponse.json(
@@ -30,20 +31,21 @@ export async function GET(
 // PUT /api/components/[id] - Update component
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const { name, code, description } = body;
 
     const componentDB = ComponentDB.getInstance();
-    const updates: any = {};
+    const updates: Partial<{ name: string; code: string; description: string }> = {};
 
     if (name !== undefined) updates.name = name;
     if (code !== undefined) updates.code = code;
     if (description !== undefined) updates.description = description;
 
-    await componentDB.update(params.id, updates);
+    await componentDB.update(id, updates);
 
     return NextResponse.json({
       success: true,
@@ -61,11 +63,12 @@ export async function PUT(
 // DELETE /api/components/[id] - Delete component
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const componentDB = ComponentDB.getInstance();
-    await componentDB.delete(params.id);
+    await componentDB.delete(id);
 
     return NextResponse.json({
       success: true,

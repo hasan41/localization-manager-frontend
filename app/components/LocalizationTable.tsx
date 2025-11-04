@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { LocalizationDB, LocalizationEntry } from '../lib/database';
 
 export default function LocalizationTable() {
@@ -17,7 +17,7 @@ export default function LocalizationTable() {
     setEditValue(currentValue);
   };
 
-  const loadEntries = async () => {
+  const loadEntries = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -28,7 +28,7 @@ export default function LocalizationTable() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [db]);
 
   const handleSave = async () => {
     if (!editingCell) return;
@@ -96,7 +96,7 @@ export default function LocalizationTable() {
 
   useEffect(() => {
     loadEntries();
-  }, []);
+  }, [loadEntries]);
 
   const languages = [
     { code: 'en', name: 'English', flag: '🇺🇸' },
