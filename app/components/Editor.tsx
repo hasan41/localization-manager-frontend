@@ -16,6 +16,7 @@ export interface EditorHandle {
   handleSave: () => Promise<void>;
   isPreviewingGenerated: boolean;
   resetChat: () => void;
+  hasUnsavedChanges: () => boolean;
 }
 
 const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onComponentSaved }, ref) => {
@@ -24,14 +25,30 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
   const [currentComponent, setCurrentComponent] = useState<string>('');
   const [componentName, setComponentName] = useState<string>('');
   const [currentComponentId, setCurrentComponentId] = useState<string | null>(null);
+  const [lastSavedCode, setLastSavedCode] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [localizeStatus, setLocalizeStatus] = useState<'idle' | 'localizing' | 'success' | 'error'>('idle');
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = useCallback(() => {
+    // No component means no unsaved changes
+    if (!currentComponent) return false;
+
+    // If there's a component but it was never saved (no ID and not matching lastSavedCode)
+    if (!currentComponentId && currentComponent !== lastSavedCode) return true;
+
+    // If there's a saved component but the current code differs from last saved
+    if (currentComponent !== lastSavedCode) return true;
+
+    return false;
+  }, [currentComponent, currentComponentId, lastSavedCode]);
 
   // Reset chat function
   const resetChat = useCallback(() => {
     setCurrentComponent('');
     setComponentName('');
     setCurrentComponentId(null);
+    setLastSavedCode('');
     setInput('');
     setMessages([]); // Clear chat messages
   }, [setMessages]);
@@ -50,10 +67,12 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
       setCurrentComponent(selectedComponent.code);
       setComponentName(selectedComponent.name);
       setCurrentComponentId(selectedComponent.id);
+      setLastSavedCode(selectedComponent.code); // Mark as saved when loading
     } else {
       setCurrentComponent('');
       setComponentName('');
       setCurrentComponentId(null);
+      setLastSavedCode('');
     }
   }, [selectedComponent]);
 
@@ -105,6 +124,7 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
         );
         setCurrentComponentId(newId);
       }
+      setLastSavedCode(currentComponent); // Update last saved code
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
       if (onComponentSaved) {
@@ -121,8 +141,9 @@ const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onCom
   useImperativeHandle(ref, () => ({
     handleSave,
     isPreviewingGenerated: !!currentComponent,
-    resetChat
-  }), [currentComponent, handleSave, resetChat]);
+    resetChat,
+    hasUnsavedChanges
+  }), [currentComponent, handleSave, resetChat, hasUnsavedChanges]);
 
   // Localize component
   const handleLocalize = async () => {

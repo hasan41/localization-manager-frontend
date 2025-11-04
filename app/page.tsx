@@ -5,6 +5,7 @@ import SideNav from './components/SideNav';
 import Editor, { EditorHandle } from './components/Editor';
 import LocalizationTable from './components/LocalizationTable';
 import ComponentHistory from './components/ComponentHistory';
+import UnsavedChangesModal from './components/UnsavedChangesModal';
 import { ComponentEntry } from './lib/database';
 
 export default function Home() {
@@ -14,9 +15,44 @@ export default function Home() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const editorRef = useRef<EditorHandle>(null);
 
+  // Unsaved changes modal state
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  // Check for unsaved changes before navigation
+  const checkUnsavedChanges = (action: () => void) => {
+    if (editorRef.current?.hasUnsavedChanges()) {
+      setPendingAction(() => action);
+      setShowUnsavedModal(true);
+      return true;
+    }
+    return false;
+  };
+
+  // Handle modal confirm - proceed with pending action
+  const handleModalConfirm = () => {
+    setShowUnsavedModal(false);
+    if (pendingAction) {
+      pendingAction();
+      setPendingAction(null);
+    }
+  };
+
+  // Handle modal cancel - stay on current page
+  const handleModalCancel = () => {
+    setShowUnsavedModal(false);
+    setPendingAction(null);
+  };
+
   const handleSelectComponent = (component: ComponentEntry) => {
-    setSelectedComponent(component);
-    setCurrentPage('editor');
+    const proceed = () => {
+      setSelectedComponent(component);
+      setCurrentPage('editor');
+    };
+
+    if (!checkUnsavedChanges(proceed)) {
+      proceed();
+    }
   };
 
   const handleComponentSaved = () => {
@@ -36,9 +72,15 @@ export default function Home() {
   };
 
   const handleNewChat = () => {
-    setSelectedComponent(null);
-    setCurrentPage('editor');
-    editorRef.current?.resetChat();
+    const proceed = () => {
+      setSelectedComponent(null);
+      setCurrentPage('editor');
+      editorRef.current?.resetChat();
+    };
+
+    if (!checkUnsavedChanges(proceed)) {
+      proceed();
+    }
   };
 
   return (
@@ -89,6 +131,13 @@ export default function Home() {
           </button>
         )}
       </main>
+
+      {/* Unsaved Changes Modal */}
+      <UnsavedChangesModal
+        isOpen={showUnsavedModal}
+        onConfirm={handleModalConfirm}
+        onCancel={handleModalCancel}
+      />
     </div>
   );
 }
