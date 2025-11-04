@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ComponentEntry } from '../lib/database';
 import { getAllComponents, deleteComponent } from '../lib/components-storage';
+import DeleteConfirmModal from './DeleteConfirmModal';
 
 interface ComponentHistoryProps {
   onSelect: (component: ComponentEntry) => void;
@@ -13,6 +14,11 @@ interface ComponentHistoryProps {
 export default function ComponentHistory({ onSelect, currentComponentId, refreshTrigger }: ComponentHistoryProps) {
   const [components, setComponents] = useState<ComponentEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; componentId: string; componentName: string }>({
+    isOpen: false,
+    componentId: '',
+    componentName: ''
+  });
 
   useEffect(() => {
     loadComponents();
@@ -29,16 +35,23 @@ export default function ComponentHistory({ onSelect, currentComponentId, refresh
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this component?')) return;
+    setDeleteModal({ isOpen: true, componentId: id, componentName: name });
+  };
 
+  const confirmDelete = async () => {
     try {
-      await deleteComponent(id);
-      setComponents(components.filter(c => c.id !== id));
+      await deleteComponent(deleteModal.componentId);
+      setComponents(components.filter(c => c.id !== deleteModal.componentId));
+      setDeleteModal({ isOpen: false, componentId: '', componentName: '' });
     } catch (error) {
       console.error('Failed to delete component:', error);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteModal({ isOpen: false, componentId: '', componentName: '' });
   };
 
   if (loading) {
@@ -107,7 +120,7 @@ export default function ComponentHistory({ onSelect, currentComponentId, refresh
                 </p>
               </div>
               <button
-                onClick={(e) => handleDelete(component.id, e)}
+                onClick={(e) => handleDelete(component.id, component.name, e)}
                 className={`ml-2 p-2 rounded-lg transition-all duration-200 ${
                   currentComponentId === component.id
                     ? 'hover:bg-white/20 text-white'
@@ -123,6 +136,14 @@ export default function ComponentHistory({ onSelect, currentComponentId, refresh
           </div>
         ))}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={deleteModal.isOpen}
+        onConfirm={confirmDelete}
+        onCancel={cancelDelete}
+        componentName={deleteModal.componentName}
+      />
     </div>
   );
 }
