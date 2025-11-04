@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import SideNav from './components/SideNav';
-import Editor from './components/Editor';
+import Editor, { EditorHandle } from './components/Editor';
 import LocalizationTable from './components/LocalizationTable';
 import ComponentHistory from './components/ComponentHistory';
 import { ComponentEntry } from './lib/database';
@@ -12,63 +12,49 @@ export default function Home() {
   const [selectedComponent, setSelectedComponent] = useState<ComponentEntry | null>(null);
   const [showHistory, setShowHistory] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [chatSessionId, setChatSessionId] = useState(0);
+  const editorRef = useRef<EditorHandle>(null);
 
   const handleSelectComponent = (component: ComponentEntry) => {
     setSelectedComponent(component);
     setCurrentPage('editor');
-    setChatSessionId(id => id + 1);
   };
 
   const handleComponentSaved = () => {
-    // Trigger refresh of component history
     setRefreshTrigger(prev => prev + 1);
     setSelectedComponent(null);
-    setChatSessionId(id => id + 1);
   };
 
-  const handleDeleteComponent = (_deletedId: string, remaining: ComponentEntry[]) => {
+  const handleDeleteComponent = (deletedId: string, remaining: ComponentEntry[]) => {
     if (remaining.length === 0) {
       setSelectedComponent(null);
-      setChatSessionId(id => id + 1);
       return;
     }
-    // Try to select next component, or previous if deleted was last
-    const idx = remaining.findIndex(c => c.id === selectedComponent?.id);
-    if (idx !== -1) {
-      const next = remaining[idx] || remaining[idx-1] || remaining[0];
-      setSelectedComponent(next);
-      setChatSessionId(id => id + 1);
-    } else {
+    // If the deleted component was selected, select another one
+    if (selectedComponent?.id === deletedId) {
       setSelectedComponent(remaining[0]);
-      setChatSessionId(id => id + 1);
     }
   };
 
   const handleNewChat = () => {
     setSelectedComponent(null);
     setCurrentPage('editor');
-    setChatSessionId(id => id + 1);
+    editorRef.current?.resetChat();
   };
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
       <SideNav currentPage={currentPage} onPageChange={setCurrentPage} onNewChat={handleNewChat} />
-
       <main className="flex-1 ml-64 flex">
-        {/* Main content area */}
         <div className="flex-1 bg-white dark:bg-slate-900">
           {currentPage === 'editor' && (
             <Editor
-              key={chatSessionId}
               selectedComponent={selectedComponent}
               onComponentSaved={handleComponentSaved}
+              ref={editorRef}
             />
           )}
           {currentPage === 'localization' && <LocalizationTable />}
         </div>
-
-        {/* Component History Sidebar - only show on editor page */}
         {currentPage === 'editor' && showHistory && (
           <div className="w-80 border-l border-slate-200 dark:border-slate-700 shadow-2xl animate-fade-in">
             <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700">
@@ -91,8 +77,6 @@ export default function Home() {
             />
           </div>
         )}
-
-        {/* Show history button when hidden */}
         {currentPage === 'editor' && !showHistory && (
           <button
             onClick={() => setShowHistory(true)}

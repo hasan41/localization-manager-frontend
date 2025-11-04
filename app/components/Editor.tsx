@@ -1,7 +1,7 @@
 'use client';
 
+import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { useState, useEffect } from 'react';
 import ComponentPreview from './ComponentPreview';
 import { ComponentEntry } from '../lib/database';
 import { localizeComponent } from '../lib/localization-utils';
@@ -12,21 +12,40 @@ interface EditorProps {
   onComponentSaved?: () => void;
 }
 
-export default function Editor({ selectedComponent, onComponentSaved }: EditorProps) {
+export interface EditorHandle {
+  handleSave: () => Promise<void>;
+  isPreviewingGenerated: boolean;
+  resetChat: () => void;
+}
+
+const Editor = forwardRef<EditorHandle, EditorProps>(({ selectedComponent, onComponentSaved }, ref) => {
   const [input, setInput] = useState('');
   const { messages, sendMessage } = useChat();
   const [currentComponent, setCurrentComponent] = useState<string>('');
   const [componentName, setComponentName] = useState<string>('');
+  const [currentComponentId, setCurrentComponentId] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [localizeStatus, setLocalizeStatus] = useState<'idle' | 'localizing' | 'success' | 'error'>('idle');
+
+  // Reset chat function
+  const resetChat = () => {
+    setCurrentComponent('');
+    setComponentName('');
+    setCurrentComponentId(null);
+    setInput('');
+  };
+
+  // Expose handle and previewing flag
+  useImperativeHandle(ref, () => ({
+    handleSave,
+    isPreviewingGenerated: !!currentComponent,
+    resetChat
+  }), [currentComponent]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim()) {
-
-      sendMessage({
-        text: `${input}`
-      });
+      sendMessage({ text: `${input}` });
       setInput('');
     }
   };
@@ -36,9 +55,11 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
     if (selectedComponent) {
       setCurrentComponent(selectedComponent.code);
       setComponentName(selectedComponent.name);
+      setCurrentComponentId(selectedComponent.id);
     } else {
-      setCurrentComponent(''); // <--- Reset for new chat
+      setCurrentComponent('');
       setComponentName('');
+      setCurrentComponentId(null);
     }
   }, [selectedComponent]);
 
@@ -47,16 +68,15 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.role === 'assistant') {
       const text = lastMessage.parts.find(part => part.type === 'text')?.text || '';
-
       // Look for React component code in code blocks
       const codeBlockRegex = /```(?:tsx?|jsx?|react)?\n([\s\S]*?)\n```/g;
       const matches = [...text.matchAll(codeBlockRegex)];
-
       if (matches.length > 0) {
         // Get the last code block (most recent component)
         const componentCode = matches[matches.length - 1][1];
         if (componentCode.includes('export default') || componentCode.includes('function') || componentCode.includes('const')) {
           setCurrentComponent(componentCode);
+          setCurrentComponentId(null); // Clear ID since this is AI-generated new code
           // Extract component name from code
           const nameMatch = componentCode.match(/(?:function|const)\s+(\w+)/);
           if (nameMatch) {
@@ -73,18 +93,26 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
       alert('No component to save');
       return;
     }
-
     setSaveStatus('saving');
     try {
-      await createComponent(
-        componentName,
-        currentComponent,
-        `Generated component: ${componentName}`
-      );
-
+      if (currentComponentId) {
+        // Update existing component
+        await updateComponent(currentComponentId, {
+          name: componentName,
+          code: currentComponent,
+          description: `Updated component: ${componentName}`
+        });
+      } else {
+        // Create new component
+        const newId = await createComponent(
+          componentName,
+          currentComponent,
+          `Generated component: ${componentName}`
+        );
+        setCurrentComponentId(newId);
+      }
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
-
       if (onComponentSaved) {
         onComponentSaved();
       }
@@ -101,15 +129,12 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
       alert('No component to localize');
       return;
     }
-
     setLocalizeStatus('localizing');
     try {
       const result = await localizeComponent(currentComponent, componentName);
       setCurrentComponent(result.code);
-
       setLocalizeStatus('success');
       setTimeout(() => setLocalizeStatus('idle'), 2000);
-
       console.log('Localization complete:', {
         extractedTexts: result.extractedTexts,
         keys: result.textToKeyMap
@@ -129,34 +154,24 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
         <div className="flex-1 overflow-y-auto p-6 pb-32">
           <div className="max-w-2xl mx-auto">
             <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                React Component Creator
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">
-                Describe the React component you want to create, and I&apos;ll build it for you with a live preview. (Beta - may take a tries to get a successful preview.)
-              </p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">React Component Creator</h1>
+              <p className="text-gray-600 dark:text-gray-400">Describe the React component you want to create, and I'll build it for you with a live preview. (Beta - may take a tries to get a successful preview.)</p>
             </div>
-            
             {messages.length === 0 && (
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 mb-6">
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Try these examples:</h3>
                 <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <div>• &quot;Create a modern button component with hover effects&quot;</div>
-                  <div>• &quot;Build a user profile card with avatar and social links&quot;</div>
-                  <div>• &quot;Make a responsive navigation menu&quot;</div>
-                  <div>• &quot;Design a pricing card component&quot;</div>
+                  <div>• "Create a modern button component with hover effects"</div>
+                  <div>• "Build a user profile card with avatar and social links"</div>
+                  <div>• "Make a responsive navigation menu"</div>
+                  <div>• "Design a pricing card component"</div>
                 </div>
               </div>
             )}
-            
             {messages.map((message, index) => (
               <div key={message.id} className="mb-6 animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
                 <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-3xl rounded-2xl px-5 py-4 shadow-md ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white ml-12'
-                      : 'bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 text-slate-900 dark:text-white mr-12 border border-slate-200 dark:border-slate-600'
-                  }`}>
+                  <div className={`max-w-3xl rounded-2xl px-5 py-4 shadow-md ${message.role === 'user' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white ml-12' : 'bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 text-slate-900 dark:text-white mr-12 border border-slate-200 dark:border-slate-600'}`}>
                     <div className={`text-xs font-bold mb-2 flex items-center gap-2 ${message.role === 'user' ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'}`}>
                       {message.role === 'user' ? (
                         <>
@@ -194,7 +209,6 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
             ))}
           </div>
         </div>
-        
         {/* Fixed Chat Input */}
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-slate-50 to-transparent dark:from-slate-900 p-6">
           <div className="max-w-2xl mx-auto">
@@ -212,10 +226,7 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
                     }
                   }}
                   rows={1}
-                  style={{
-                    height: 'auto',
-                    minHeight: '56px',
-                  }}
+                  style={{ height: 'auto', minHeight: '56px' }}
                   onInput={e => {
                     const target = e.target as HTMLTextAreaElement;
                     target.style.height = 'auto';
@@ -227,18 +238,9 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
                   disabled={!input.trim()}
                   className="mr-2 mb-2 p-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 dark:disabled:from-slate-600 dark:disabled:to-slate-600 text-white rounded-xl transition-all duration-300 disabled:cursor-not-allowed shadow-lg hover:shadow-blue-500/50 hover:scale-110"
                 >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m22 2-7 20-4-9-9-4Z"/>
-                    <path d="M22 2 11 13"/>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m22 2-7 20-4-9-9-4Z" />
+                    <path d="M22 2 11 13" />
                   </svg>
                 </button>
               </div>
@@ -246,7 +248,6 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
           </div>
         </div>
       </div>
-
       {/* Preview Section */}
       <div className="w-1/2 border-l border-gray-200 dark:border-gray-700 flex flex-col">
         {/* Preview Header with Actions */}
@@ -261,13 +262,9 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
                   </svg>
                 </div>
                 <div>
-                  <h2 className="font-bold text-slate-900 dark:text-white">
-                    {componentName || 'Component Preview'}
-                  </h2>
+                  <h2 className="font-bold text-slate-900 dark:text-white">{componentName || 'Component Preview'}</h2>
                   {currentComponent && (
-                    <p className="text-xs text-slate-500">
-                      {currentComponent.split('\n').length} lines of code
-                    </p>
+                    <p className="text-xs text-slate-500">{currentComponent.split('\n').length} lines of code</p>
                   )}
                 </div>
               </div>
@@ -276,13 +273,7 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
               <button
                 onClick={handleSave}
                 disabled={!currentComponent || saveStatus === 'saving'}
-                className={`group relative px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 shadow-lg ${
-                  !currentComponent || saveStatus === 'saving'
-                    ? 'bg-slate-300 dark:bg-slate-600 text-slate-500 cursor-not-allowed'
-                    : saveStatus === 'success'
-                    ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-green-500/30 scale-105'
-                    : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white hover:shadow-green-500/50 hover:scale-105'
-                }`}
+                className={`group relative px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 shadow-lg ${!currentComponent || saveStatus === 'saving' ? 'bg-slate-300 dark:bg-slate-600 text-slate-500 cursor-not-allowed' : saveStatus === 'success' ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-green-500/30 scale-105' : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white hover:shadow-green-500/50 hover:scale-105'}`}
               >
                 {saveStatus === 'saving' && (
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
@@ -302,17 +293,10 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
                 )}
                 <span>{saveStatus === 'saving' ? 'Saving...' : saveStatus === 'success' ? 'Saved!' : 'Save'}</span>
               </button>
-
               <button
                 onClick={handleLocalize}
                 disabled={!currentComponent || localizeStatus === 'localizing'}
-                className={`group relative px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 shadow-lg ${
-                  !currentComponent || localizeStatus === 'localizing'
-                    ? 'bg-slate-300 dark:bg-slate-600 text-slate-500 cursor-not-allowed'
-                    : localizeStatus === 'success'
-                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/30 scale-105'
-                    : 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white hover:shadow-purple-500/50 hover:scale-105'
-                }`}
+                className={`group relative px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2 shadow-lg ${!currentComponent || localizeStatus === 'localizing' ? 'bg-slate-300 dark:bg-slate-600 text-slate-500 cursor-not-allowed' : localizeStatus === 'success' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-purple-500/30 scale-105' : 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white hover:shadow-purple-500/50 hover:scale-105'}`}
               >
                 {localizeStatus === 'localizing' && (
                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
@@ -335,7 +319,6 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
             </div>
           </div>
         </div>
-
         {/* Preview Component */}
         <div className="flex-1 overflow-auto">
           <ComponentPreview componentCode={currentComponent} />
@@ -343,4 +326,6 @@ export default function Editor({ selectedComponent, onComponentSaved }: EditorPr
       </div>
     </div>
   );
-}
+});
+
+export default Editor;
